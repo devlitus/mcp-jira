@@ -1,0 +1,19 @@
+{
+  "name": "mcp_jira",
+  "version": "1.0.0",
+  "type": "module",  
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+
+  "description": "",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "typescript": "^5.8.3"
+  }
+}
