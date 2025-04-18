@@ -86,17 +86,18 @@ server.tool(
 
 server.tool(
   "getDetailIssues",
+  "Returns the details for an issue",
   {
     domain: z.string().describe("The domain of the workspace"),
-    issue: z.string().describe("The issue key"),
+    issueKey: z.string().describe("The issue key"),
   },
-  async ({domain, issue}) => {
-    const response = await fetch(`https://${domain}/rest/api/3/issue/${issue}`, {
+  async ({domain, issueKey}) => {
+    const response = await fetch(`https://${domain}/rest/api/3/issue/${issueKey}`, {
       method: "GET",
       headers: headers,
     });
     if (!response.ok) {
-      console.error(`Error: ${response.statusText} ${response.status}) ${JIRA_EMAIL}`);
+      console.error(`Error: ${response.statusText} ${response.status})`);
       return { content: [{ type: 'text', text: `${response.statusText}` }] };
     }
     const data = JSON.stringify(await response.json(), null, 2);
@@ -104,13 +105,85 @@ server.tool(
       content: [
         {
           type: 'text',
-          text: `Issues for the workspace ${domain}: ${data}`,
+          text: `The details for an issue from domain ${domain}: ${data}`,
         }
       ]
     };
   }
 );
 
+server.tool(
+  "get_comments",
+  "Returns all comments for an issue",
+  {
+    domain: z.string().describe("The domain of the workspace"),
+    issueKey: z.string().describe("The issue key"),
+  },
+  async ({domain, issueKey}) => {
+    const response = await fetch(`https://${domain}/rest/api/3/issue/${issueKey}/comment`, {
+      method: "GET",
+      headers: headers,
+    });
+    if (!response.ok) {
+      console.error(`Error: ${response.statusText} ${response.status})`);
+      return { content: [{ type: 'text', text: `${response.statusText}` }] };
+    }
+    const data = JSON.stringify(await response.json(), null, 2);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `All comments for an issue ${domain}: ${data}`,
+        }
+      ]
+    };
+  }
+);
+
+server.tool(
+  "add_comment",
+  "Adds a comment to an issue",
+  {
+    domain: z.string().describe("The domain of the workspace"),
+    issueKey: z.string().describe("The issue key"),
+    comment: z.string().describe("The comment to add"),
+  },
+  async ({domain, issueKey, comment}) => {
+    const response = await fetch(`https://${domain}/rest/api/3/issue/${issueKey}/comment`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        body: {
+          "content": [
+            { "content": [
+                {"text": comment, "type": "text"}
+              ],
+              "type": "paragraph",
+            }
+          ],
+          "type": "doc",
+          "version": 1,
+        }
+      }),
+    });
+    if (!response.ok) {
+      console.error(`Error: ${response.statusText} ${response.status})`);
+      return { content: [{ type: 'text', text: `${response.statusText}` }] };
+    }
+        
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Added comment to issue ${issueKey} in domain ${domain}`,
+        }
+      ]
+    };
+  }
+);
 
 
 
