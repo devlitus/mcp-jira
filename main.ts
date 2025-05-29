@@ -384,6 +384,7 @@ server.tool(
 );
 
 server.tool(
+<<<<<<< Updated upstream
   "editIssue",
   "Edits an existing issue in Jira. You can update various fields of an issue. For the 'description' field, ensure it is in Atlassian Document Format (ADF).",
   {
@@ -395,6 +396,61 @@ server.tool(
     const requestBody = {
       fields: fieldsToUpdate,
     };
+=======
+  "delete_comment",
+  "Deletes a comment from an issue",
+  {
+    domain: z.string().describe("The domain of the workspace"),
+    issueKey: z.string().describe("The issue key"),
+    commentId: z.string().describe("The comment ID"),
+  },
+  async ({domain, issueKey, commentId}) => {
+    const response = await fetch(`https://${domain}/rest/api/3/issue/${issueKey}/comment/${commentId}`, {
+      method: "DELETE",
+      headers: headers,
+    });
+    if (!response.ok) {
+      console.error(`Error: ${response.statusText} ${response.status})`);
+      return { content: [{ type: 'text', text: `${response.statusText}` }] };
+    }
+        
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Deleted comment ${commentId} from issue ${issueKey} in domain ${domain}`,
+        }
+      ]
+    };
+  }
+);
+server.tool(
+  "get_dashboard",
+  "Returns all dashboards for a workspace",
+  {
+    domain: z.string().describe("The domain of the workspace"),
+  },
+  async ({domain}) => {
+    const response = await fetch(`https://${domain}/rest/api/3/dashboard`, {
+      method: "GET",
+      headers: headers,
+    });
+    if (!response.ok) {
+      console.error(`Error: ${response.statusText} ${response.status})`);
+      return { content: [{ type: 'text', text: `${response.statusText}` }] };
+    }
+    const data = JSON.stringify(await response.json(), null, 2);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `All dashboards for the workspace ${domain}: ${data}`,
+        }
+      ]
+    };
+  }
+)
+>>>>>>> Stashed changes
 
     const response = await fetch(`https://${domain}/rest/api/3/issue/${issueIdOrKey}`, {
       method: "PUT",
