@@ -89,6 +89,429 @@ server.tool(
 );
 
 server.tool(
+  "getAllUsers",
+  "Retrieves a list of all users in Jira, with pagination.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    startAt: z.number().optional().default(0).describe("The index of the first user to return (for pagination). Defaults to 0."),
+    maxResults: z.number().optional().default(50).describe("The maximum number of users to return per page. Defaults to 50."),
+  },
+  async ({ domain, startAt, maxResults }) => {
+    const params = new URLSearchParams();
+    params.append('startAt', startAt.toString());
+    params.append('maxResults', maxResults.toString());
+    
+    const apiUrl = `https://${domain}/rest/api/3/users/search?${params.toString()}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      // Catch any non-2xx status.
+      const errorText = await response.text();
+      console.error(`Error retrieving all users: ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error retrieving all users: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+    
+    // Successful GET to Jira /rest/api/3/users/search should return 200 OK with an array of user objects
+    if (response.status === 200) {
+      const usersData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text', // Or 'json' if the MCP client can handle it directly
+            text: JSON.stringify(usersData, null, 2), // Return the users data as a formatted JSON string
+          },
+        ],
+      };
+    } else {
+      // Handle other potential success codes if necessary, though 200 is standard.
+      const unexpectedResponseText = await response.text();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Retrieving all users resulted in an unexpected status: ${response.status}. Response: ${unexpectedResponseText}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUserGroups",
+  "Retrieves the groups a user belongs to in Jira using their account ID.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    accountId: z.string().describe("The account ID of the user whose groups are to be retrieved."),
+  },
+  async ({ domain, accountId }) => {
+    const params = new URLSearchParams({ accountId });
+    const apiUrl = `https://${domain}/rest/api/3/user/groups?${params.toString()}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      // Catch any non-2xx status.
+      const errorText = await response.text();
+      console.error(`Error retrieving groups for user ${accountId}: ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error retrieving groups for user ${accountId}: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+    
+    // Successful GET to Jira /rest/api/3/user/groups should return 200 OK with an array of group objects
+    if (response.status === 200) {
+      const groupsData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text', // Or 'json' if the MCP client can handle it directly
+            text: JSON.stringify(groupsData, null, 2), // Return the groups data as a formatted JSON string
+          },
+        ],
+      };
+    } else {
+      // Handle other potential success codes if necessary, though 200 is standard.
+      const unexpectedResponseText = await response.text();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Group retrieval for user ${accountId} resulted in an unexpected status: ${response.status}. Response: ${unexpectedResponseText}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUserEmailBulk",
+  "Retrieves email addresses for multiple Jira users by their account IDs. Note: Access to this API may be restricted by Atlassian for Connect/Forge apps.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    accountIds: z.array(z.string()).min(1).describe("An array of account IDs for whom to retrieve email addresses. Must contain at least one ID."),
+  },
+  async ({ domain, accountIds }) => {
+    const params = new URLSearchParams();
+    accountIds.forEach(id => params.append('accountId', id));
+    
+    const apiUrl = `https://${domain}/rest/api/3/user/email/bulk?${params.toString()}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      // Catch any non-2xx status.
+      const errorText = await response.text();
+      console.error(`Error retrieving bulk emails: ${response.status} ${response.statusText}`, errorText);
+      let userMessage = `Error retrieving bulk emails: ${response.statusText}. Status: ${response.status}. Details: ${errorText}`;
+      
+      if (response.status === 403) {
+        userMessage += " Note: A 403 Forbidden error for this API can indicate that the app has not been approved by Atlassian to access email addresses, or specific app permissions are missing.";
+      }
+      
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: userMessage 
+        }] 
+      };
+    }
+    
+    // Successful GET to Jira /rest/api/3/user/email/bulk should return 200 OK with user email data
+    if (response.status === 200) {
+      const emailBulkData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text', // Or 'json' if the MCP client can handle it directly
+            text: JSON.stringify(emailBulkData, null, 2), // Return the email data as a formatted JSON string
+          },
+        ],
+      };
+    } else {
+      // Handle other potential success codes if necessary, though 200 is standard.
+      const unexpectedResponseText = await response.text();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Bulk email retrieval resulted in an unexpected status: ${response.status}. Response: ${unexpectedResponseText}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUserEmail",
+  "Retrieves a user's email address from Jira using their account ID. Note: Access to this API may be restricted by Atlassian for Connect/Forge apps.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    accountId: z.string().describe("The account ID of the user whose email is to be retrieved."),
+  },
+  async ({ domain, accountId }) => {
+    const params = new URLSearchParams({ accountId });
+    const apiUrl = `https://${domain}/rest/api/3/user/email?${params.toString()}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      // Catch any non-2xx status.
+      const errorText = await response.text();
+      console.error(`Error retrieving email for user ${accountId}: ${response.status} ${response.statusText}`, errorText);
+      let userMessage = `Error retrieving email for user ${accountId}: ${response.statusText}. Status: ${response.status}. Details: ${errorText}`;
+      
+      if (response.status === 403) {
+        userMessage += " Note: A 403 Forbidden error for this API can indicate that the app has not been approved by Atlassian to access email addresses, or specific app permissions are missing.";
+      }
+      
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: userMessage 
+        }] 
+      };
+    }
+    
+    // Successful GET to Jira /rest/api/3/user/email should return 200 OK with user email data
+    if (response.status === 200) {
+      const emailData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text', // Or 'json' if the MCP client can handle it directly
+            text: JSON.stringify(emailData, null, 2), // Return the email data as a formatted JSON string
+          },
+        ],
+      };
+    } else {
+      // Handle other potential success codes if necessary, though 200 is standard.
+      const unexpectedResponseText = await response.text();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Email retrieval for user ${accountId} resulted in an unexpected status: ${response.status}. Response: ${unexpectedResponseText}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getAccountIdsForUsers",
+  "Retrieves account IDs for users by their usernames and/or user keys.",
+  z.object({
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    usernames: z.array(z.string()).optional().describe("An array of usernames to resolve."),
+    keys: z.array(z.string()).optional().describe("An array of user keys to resolve."),
+    startAt: z.number().optional().default(0).describe("The index of the first item to return (for pagination). Defaults to 0."),
+    maxResults: z.number().optional().default(50).describe("The maximum number of items to return per page. Defaults to 50, max is 1000."),
+  }).refine(data => (data.usernames && data.usernames.length > 0) || (data.keys && data.keys.length > 0), {
+    message: "Either 'usernames' or 'keys' must be provided and be a non-empty array.",
+  }),
+  async ({ domain, usernames, keys, startAt, maxResults }) => {
+    const params = new URLSearchParams();
+    
+    if (usernames) {
+      usernames.forEach(username => params.append('username', username));
+    }
+    if (keys) {
+      keys.forEach(key => params.append('key', key));
+    }
+    
+    params.append('startAt', startAt!.toString()); // Non-null assertion due to default
+    params.append('maxResults', maxResults!.toString()); // Non-null assertion due to default
+    
+    const apiUrl = `https://${domain}/rest/api/3/user/bulk/migration?${params.toString()}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      // Catch any non-2xx status.
+      const errorText = await response.text();
+      console.error(`Error retrieving account IDs: ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error retrieving account IDs: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+    
+    // Successful GET to Jira /rest/api/3/user/bulk/migration should return 200 OK with user data
+    if (response.status === 200) {
+      const accountIdData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text', // Or 'json' if the MCP client can handle it directly
+            text: JSON.stringify(accountIdData, null, 2), // Return the data as a formatted JSON string
+          },
+        ],
+      };
+    } else {
+      // Handle other potential success codes if necessary, though 200 is standard.
+      const unexpectedResponseText = await response.text();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Account ID retrieval resulted in an unexpected status: ${response.status}. Response: ${unexpectedResponseText}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUsersBulk",
+  "Retrieves a list of users from Jira by their account IDs, with pagination.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    accountIds: z.array(z.string()).min(1).describe("An array of account IDs of the users to retrieve. Must contain at least one ID."),
+    startAt: z.number().optional().default(0).describe("The index of the first user to return (for pagination). Defaults to 0."),
+    maxResults: z.number().optional().default(50).describe("The maximum number of users to return per page. Defaults to 50, max is 1000."),
+  },
+  async ({ domain, accountIds, startAt, maxResults }) => {
+    const params = new URLSearchParams();
+    accountIds.forEach(id => params.append('accountId', id));
+    params.append('startAt', startAt.toString());
+    params.append('maxResults', maxResults.toString());
+    
+    const apiUrl = `https://${domain}/rest/api/3/user/bulk?${params.toString()}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      // Catch any non-2xx status.
+      const errorText = await response.text();
+      console.error(`Error retrieving bulk users: ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error retrieving bulk users: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+    
+    // Successful GET to Jira /rest/api/3/user/bulk should return 200 OK with user data
+    if (response.status === 200) {
+      const usersData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text', // Or 'json' if the MCP client can handle it directly
+            text: JSON.stringify(usersData, null, 2), // Return the user data as a formatted JSON string
+          },
+        ],
+      };
+    } else {
+      // Handle other potential success codes if necessary, though 200 is standard.
+      const unexpectedResponseText = await response.text();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Bulk user retrieval resulted in an unexpected status: ${response.status}. Response: ${unexpectedResponseText}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUser",
+  "Retrieves user details from Jira using their account ID.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    accountId: z.string().describe("The account ID of the user to retrieve."),
+    expand: z.string().optional().describe("A comma-separated list of entities to expand in the response (e.g., 'groups,applicationRoles')."),
+  },
+  async ({ domain, accountId, expand }) => {
+    const params = new URLSearchParams({ accountId });
+    if (expand) {
+      params.append('expand', expand);
+    }
+    
+    const apiUrl = `https://${domain}/rest/api/3/user?${params.toString()}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      // Catch any non-2xx status.
+      const errorText = await response.text();
+      console.error(`Error retrieving user ${accountId}: ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error retrieving user ${accountId}: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+    
+    // Successful GET to Jira /rest/api/3/user should return 200 OK with user data
+    if (response.status === 200) {
+      const userData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text', // Or 'json' if the MCP client can handle it directly
+            text: JSON.stringify(userData, null, 2), // Return the user data as a formatted JSON string
+          },
+        ],
+      };
+    } else {
+      // Handle other potential success codes if necessary, though 200 is standard.
+      const unexpectedResponseText = await response.text();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `User retrieval for ${accountId} resulted in an unexpected status: ${response.status}. Response: ${unexpectedResponseText}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
   "assignIssue",
   "Assigns or unassigns an issue to a user in Jira. Use null for accountId to unassign.",
   {
