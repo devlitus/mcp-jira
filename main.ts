@@ -5,13 +5,10 @@ import {z} from "zod";
 // "Performs an issue transition and, if the transition has a screen, updates the fields from the transition screen.",
 const JIRA_EMAIL = process.env.JIRA_EMAIL || "";
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN || "";
-if (!JIRA_EMAIL || !JIRA_API_TOKEN) {
-  console.error("Please set the JIRA_EMAIL and JIRA_API_TOKEN environment variables.");
-  process.exit(1);
-}
 
 // Create a new server instance
-const server = new McpServer({
+// Export the server instance for testing purposes
+export const server = new McpServer({
   name: "Jira",
   version: "1.0.0",
 });
@@ -85,6 +82,155 @@ server.tool(
         },
       ],
     };
+  }
+);
+
+server.tool(
+  "getUserGroups",
+  "Retrieves the groups a user belongs to in Jira.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    accountId: z.string().describe("The account ID of the user to retrieve groups for."),
+  },
+  async ({ domain, accountId }) => {
+    const apiUrl = `https://${domain}/rest/api/3/user/groups?accountId=${accountId}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error retrieving groups for user ${accountId}: ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error retrieving groups for user ${accountId}: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+
+    try {
+      const groupsData = await response.json(); // This will be an array of group objects
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(groupsData, null, 2), // Pretty print the JSON array
+          },
+        ],
+      };
+    } catch (e: any) {
+      console.error(`Error parsing JSON response for user groups query for accountId "${accountId}":`, e.message);
+      const responseText = await response.text(); 
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error parsing JSON response for user groups. Details: ${e.message}. Raw response: ${responseText}` 
+        }] 
+      };
+    }
+  }
+);
+
+server.tool(
+  "findUsers",
+  "Finds users in Jira based on a query string.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    query: z.string().describe("The query string to search for users (e.g., name, email address)."),
+  },
+  async ({ domain, query }) => {
+    const apiUrl = `https://${domain}/rest/api/3/user/search?query=${encodeURIComponent(query)}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error finding users with query "${query}": ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error finding users: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+
+    try {
+      const usersData = await response.json(); // This will be an array of user objects
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(usersData, null, 2), // Pretty print the JSON array
+          },
+        ],
+      };
+    } catch (e: any) {
+      console.error(`Error parsing JSON response for user search query "${query}":`, e.message);
+      const responseText = await response.text(); 
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error parsing JSON response for user search. Details: ${e.message}. Raw response: ${responseText}` 
+        }] 
+      };
+    }
+  }
+);
+
+server.tool(
+  "getUser",
+  "Retrieves a user's details from Jira.",
+  {
+    domain: z.string().describe("The domain of the Jira instance (e.g., 'your-domain.atlassian.net')"),
+    accountId: z.string().describe("The account ID of the user to retrieve."),
+  },
+  async ({ domain, accountId }) => {
+    const apiUrl = `https://${domain}/rest/api/3/user?accountId=${accountId}`;
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: headers, // Standard headers include Authorization and Accept
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error retrieving user ${accountId}: ${response.status} ${response.statusText}`, errorText);
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error retrieving user ${accountId}: ${response.statusText}. Status: ${response.status}. Details: ${errorText}` 
+        }] 
+      };
+    }
+
+    // Assuming the response will be JSON, attempt to parse it.
+    try {
+      const userData = await response.json();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(userData, null, 2), // Pretty print the JSON
+          },
+        ],
+      };
+    } catch (e: any) {
+      // Handle cases where response is not valid JSON, though Jira usually returns JSON for errors too.
+      console.error(`Error parsing JSON response for user ${accountId}:`, e.message);
+      const responseText = await response.text(); // Get raw text if JSON parsing fails
+      return { 
+        content: [{ 
+          type: 'text', 
+          text: `Error parsing JSON response for user ${accountId}. Details: ${e.message}. Raw response: ${responseText}` 
+        }] 
+      };
+    }
   }
 );
 
@@ -504,4 +650,19 @@ server.tool(
 );
 
 const transport = new StdioServerTransport();
-await server.connect(transport);
+
+// Main execution block
+// This will only run if the script is executed directly (e.g., `node main.js`)
+// and not when imported as a module (e.g., in a test file)
+if (require.main === module) {
+  if (!JIRA_EMAIL || !JIRA_API_TOKEN) {
+    console.error("Please set the JIRA_EMAIL and JIRA_API_TOKEN environment variables to run the server.");
+    process.exit(1);
+  }
+  server.connect(transport).then(() => {
+    console.log("Jira MCP server connected via Stdio.");
+  }).catch(err => {
+    console.error("Failed to connect Jira MCP server:", err);
+    process.exit(1);
+  });
+}
